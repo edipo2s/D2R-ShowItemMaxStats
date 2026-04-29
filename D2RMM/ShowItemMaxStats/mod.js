@@ -77,6 +77,13 @@ const propIrrelevantByCode = propertiesItems.rows.reduce((acc, v) => {
     return acc;
 }, {});
 
+const propertygroupsFilePath = 'global\\excel\\propertygroups.txt';
+const propertygroupsItems = D2RMM.readTsv(propertygroupsFilePath);
+const propertiesByPropertyGroupCode = propertygroupsItems.rows.reduce((acc, v) => {
+    acc[v.code] = v;
+    return acc;
+}, {});
+
 const skillsFilePath = 'global\\excel\\skills.txt';
 const skillsItems = D2RMM.readTsv(skillsFilePath);
 const skillDescFilePath = 'global\\excel\\skilldesc.txt';
@@ -366,6 +373,8 @@ const statsCodeMap = {
     "kick/time": "",
     "deadly/time": "",
     "gems%/time": "",
+    "pierce-dmg": "%EDR",
+    "pierce-mag": "%EMR",
     "pierce-fire": "%EFR",
     "pierce-ltng": "%ELR",
     "pierce-cold": "%ECR",
@@ -379,6 +388,7 @@ const statsCodeMap = {
     "ac%-mon": "",
     "indestruct": "Inds",
     "charged": "lvlCS",
+    "extra-mag": "%MSDmg",
     "extra-fire": "%FSDmg",
     "extra-ltng": "%LSDmg",
     "extra-cold": "%CSDmg",
@@ -439,6 +449,8 @@ const skillTabTextByCode = {
 }
 
 const negativeStats = [
+    "pierce-dmg",
+    "pierce-mag",
     "pierce-fire",
     "pierce-ltng",
     "pierce-cold",
@@ -493,6 +505,15 @@ function getMaxStatsText(key, lang, itemDB, maxProps, propPrefix, paramPrefix, m
 
     for (let i=1; i<=maxProps; i++) {
         const code = data[`${propPrefix}${i}`];
+
+        const propertyGroup = propertiesByPropertyGroupCode[code];
+        if (propertyGroup) {
+            const groupMaxStats = getMaxStatsText(code, lang, propertiesByPropertyGroupCode, 8, "Prop", "ParMin", "ModMin", "ModMax");
+            if (groupMaxStats.length) {                
+                maxStats[code] = [{ skillId: 0, text: groupMaxStats.join("|") }];
+            }
+            continue;
+        }
 
         // Skip invalid props
         if (propIrrelevantByCode[code]) {
@@ -589,15 +610,19 @@ function getMaxStatsText(key, lang, itemDB, maxProps, propPrefix, paramPrefix, m
         }
         maxStats[code].push({ skillId, text: `${prefix}${maxValue}${statsCode}` });
     }
-    
+
     return Object.entries(maxStats)
         .sort(([codeA, _a], [codeB, _b]) => 
             ((propDescPriorityByCode[codeB] || 0) - (propDescPriorityByCode[codeA] || 0)) ||
             (propIDByCode[codeA] - propIDByCode[codeB])
         )
-        .map(([_, maxStats]) => {
+        .map(([_, stats]) => {
+            if (!stats) {
+                return "";
+            }
+
             // Sort multiple skills by its skill id
-            const sortedMaxStats = maxStats.sort((a, b) => +b.skillId - a.skillId);
+            const sortedMaxStats = stats.sort((a, b) => +b.skillId - a.skillId);
             return sortedMaxStats.map(ms => ms.text).join(statsSeparator)
         });
 }
